@@ -92,9 +92,8 @@ class AllocationCalculator:
         else:
             inventory = Inventory(category=category)
 
-        # 종류 수를 0으로 설정하여 도감 효과 무시
-        # (종류 수가 0이면 모든 획득이 중복분으로 처리되어 합성 재료로 사용 가능)
-        type_counts = {grade: 0 for grade in Grade}
+        # 실제 종류 수를 설정하여 도감(장판) 효과를 반영
+        type_counts = self.dm.item_counts.get(category, {})
         inventory.set_type_counts(type_counts)
 
         # 소환권 적용
@@ -115,8 +114,10 @@ class AllocationCalculator:
         else:
             inventory, _ = synthesize_to_max(inventory, category)
 
-        # 목표 등급 총 획득량 (도감 무시, 총 획득만)
-        return inventory.total_acquired.get(target_grade, 0)
+        # 목표 등급 총 보유량 (도감 + 중복분)
+        owned = inventory.owned_count.get(target_grade, 0)
+        duplicates = inventory.duplicate_count.get(target_grade, 0)
+        return owned + duplicates
 
     def _find_required_tickets_binary_search(
         self,
