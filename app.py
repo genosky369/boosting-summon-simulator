@@ -809,21 +809,38 @@ with tab4:
         for name, count in merged_allocs.items():
             all_imm_allocs.append(type('A', (), {'ticket_name': name, 'ticket_count': count})())
 
+        # 총량 보존 정수 분배 함수
+        def distribute_integer(total, pcts):
+            """총량을 비율에 맞게 정수로 분배 (나머지는 앞 주차부터)"""
+            raw = {w: total * (pcts[w] / 100.0) for w in range(1, 11)}
+            floored = {w: int(raw[w]) for w in range(1, 11)}
+            remainder = total - sum(floored.values())
+            # 나머지를 소수부 큰 순서로 분배
+            fracs = sorted(range(1, 11), key=lambda w: raw[w] - floored[w], reverse=True)
+            for i in range(int(round(remainder))):
+                floored[fracs[i]] += 1
+            return floored
+
         if all_imm_allocs:
             import pandas as pd
+            # 소환권별 주차 분배 미리 계산
+            weekly_dist = {}
+            for alloc in all_imm_allocs:
+                short_name = alloc.ticket_name.replace(" (캐릭터 귀속)", "").replace(" (계정 귀속)", "")
+                weekly_dist[short_name] = distribute_integer(alloc.ticket_count, st.session_state.weekly_pcts_imm)
+
             preview_imm = []
             for w in range(1, 11):
-                pct = st.session_state.weekly_pcts_imm[w] / 100.0
                 row = {"주차": f"{w}주차 ({BOOSTING_SCHEDULE[w].strftime('%m.%d')})"}
                 for alloc in all_imm_allocs:
                     short_name = alloc.ticket_name.replace(" (캐릭터 귀속)", "").replace(" (계정 귀속)", "")
-                    row[short_name] = round(alloc.ticket_count * pct)
+                    row[short_name] = weekly_dist[short_name][w]
                 preview_imm.append(row)
 
             total_row = {"주차": "합계"}
             for alloc in all_imm_allocs:
                 short_name = alloc.ticket_name.replace(" (캐릭터 귀속)", "").replace(" (계정 귀속)", "")
-                total_row[short_name] = sum(r[short_name] for r in preview_imm)
+                total_row[short_name] = sum(weekly_dist[short_name].values())
             preview_imm.append(total_row)
 
             df_imm = pd.DataFrame(preview_imm)
@@ -832,9 +849,12 @@ with tab4:
         if st.button("10주 전체에 배분 적용", type="primary", key="apply_weekly_alloc_imm"):
             from simulator.main_engine import WeeklyInput
 
-            for w in range(1, 11):
-                pct = st.session_state.weekly_pcts_imm[w] / 100.0
+            # 정수 분배 계산
+            apply_dist = {}
+            for alloc in all_imm_allocs:
+                apply_dist[alloc.ticket_name] = distribute_integer(alloc.ticket_count, st.session_state.weekly_pcts_imm)
 
+            for w in range(1, 11):
                 if w not in st.session_state.state.weekly_inputs:
                     st.session_state.state.weekly_inputs[w] = WeeklyInput(
                         week=w,
@@ -845,7 +865,7 @@ with tab4:
                 week_input = st.session_state.state.weekly_inputs[w]
 
                 for alloc in all_imm_allocs:
-                    weekly_count = round(alloc.ticket_count * pct)
+                    weekly_count = apply_dist[alloc.ticket_name][w]
                     if weekly_count > 0:
                         # 기존에 같은 소환권이 있으면 수량 추가
                         found = False
