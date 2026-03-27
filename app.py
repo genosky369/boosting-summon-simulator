@@ -724,6 +724,7 @@ with tab4:
                             )
 
                 st.success(f"10주 전체에 {category_names[result.category]} 소환권이 배분되었습니다! '소환권 입력' 탭에서 확인하세요.")
+                st.rerun()
 
         else:
             st.warning("계산 결과가 없습니다. 소환권 데이터를 확인해주세요.")
