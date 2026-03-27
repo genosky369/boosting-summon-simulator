@@ -94,6 +94,9 @@ class SimulationState:
     spirit_target_level: int = 5  # 투혼 레벨업 목표 (0~5)
     card_target_level: int = 5    # 카드 레벨업 목표 (0~5)
 
+    # 불멸 클래스 목표
+    class_immortal_target: int = 0
+
     def ensure_categories(self):
         """모든 카테고리가 초기화되었는지 확인"""
         for cat in Category:
@@ -239,8 +242,49 @@ class MainSimulationEngine:
                     inventory, target_level=state.card_target_level
                 )
             else:
+                # 불멸 클래스 재료 예약 (전설 목표 80% 달성 후)
+                reserved_ancient = 0
+                reserved_legendary = 0
+                imm_target = getattr(state, 'class_immortal_target', 0)
+
+                if cat == Category.CLASS and imm_target > 0:
+                    legend_target = state.target_spec.get(Category.CLASS, {}).get(Grade.LEGENDARY, 10)
+                    legend_owned = inventory.owned_count.get(Grade.LEGENDARY, 0)
+                    legend_dups = inventory.duplicate_count.get(Grade.LEGENDARY, 0)
+                    legend_total = legend_owned + legend_dups
+
+                    # 전설 목표 80% 달성 시 불멸 재료 예약
+                    if legend_total >= legend_target * 0.8:
+                        # 전설 잉여에서 8개 예약
+                        legend_surplus = max(0, legend_total - legend_target)
+                        reserved_legendary = min(8, legend_surplus)
+                        if reserved_legendary > 0:
+                            inventory.duplicate_count[Grade.LEGENDARY] = max(0,
+                                inventory.duplicate_count.get(Grade.LEGENDARY, 0) - reserved_legendary)
+                            inventory.total_acquired[Grade.LEGENDARY] = max(0,
+                                inventory.total_acquired.get(Grade.LEGENDARY, 0) - reserved_legendary)
+
+                    # 고대 도감 95%+ 완성 시 고대 32개 예약
+                    ancient_owned, ancient_types = inventory.get_collection_status(Grade.ANCIENT)
+                    if ancient_types > 0 and ancient_owned >= ancient_types * 0.95:
+                        ancient_dups = inventory.duplicate_count.get(Grade.ANCIENT, 0)
+                        reserved_ancient = min(32, ancient_dups)
+                        if reserved_ancient > 0:
+                            inventory.duplicate_count[Grade.ANCIENT] = max(0,
+                                inventory.duplicate_count.get(Grade.ANCIENT, 0) - reserved_ancient)
+                            inventory.total_acquired[Grade.ANCIENT] = max(0,
+                                inventory.total_acquired.get(Grade.ANCIENT, 0) - reserved_ancient)
+
                 # 클래스/펫: 최고 등급까지 합성
                 inventory, _ = synthesize_to_max(inventory, cat)
+
+                # 예약했던 불멸 재료 복원 (합성에서 제외된 상태로 보관)
+                if reserved_ancient > 0:
+                    inventory.total_acquired[Grade.ANCIENT] = inventory.total_acquired.get(Grade.ANCIENT, 0) + reserved_ancient
+                    inventory.duplicate_count[Grade.ANCIENT] = inventory.duplicate_count.get(Grade.ANCIENT, 0) + reserved_ancient
+                if reserved_legendary > 0:
+                    inventory.total_acquired[Grade.LEGENDARY] = inventory.total_acquired.get(Grade.LEGENDARY, 0) + reserved_legendary
+                    inventory.duplicate_count[Grade.LEGENDARY] = inventory.duplicate_count.get(Grade.LEGENDARY, 0) + reserved_legendary
 
             state.current_inventories[cat] = inventory
 
