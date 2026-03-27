@@ -646,38 +646,6 @@ with tab4:
                 **예상 획득량**: {result.total_expected:.2f}개 (목표: {result.target_count}개)
                 """)
 
-            # 결과를 주차별 입력에 추가하는 버튼
-            st.markdown("---")
-            if st.button("이 배분을 1주차에 추가", key="add_alloc_to_week"):
-                from simulator.main_engine import WeeklyInput
-
-                week = 1
-                if week not in st.session_state.state.weekly_inputs:
-                    st.session_state.state.weekly_inputs[week] = WeeklyInput(
-                        week=week,
-                        date=BOOSTING_SCHEDULE[week],
-                        tickets={cat: [] for cat in Category}
-                    )
-
-                week_input = st.session_state.state.weekly_inputs[week]
-
-                for alloc in result.allocations:
-                    if alloc.ticket_count > 0:
-                        # 기존에 같은 소환권이 있으면 수량 추가
-                        found = False
-                        for i, (name, count) in enumerate(week_input.tickets[result.category]):
-                            if name == alloc.ticket_name:
-                                week_input.tickets[result.category][i] = (name, count + alloc.ticket_count)
-                                found = True
-                                break
-
-                        if not found:
-                            week_input.tickets[result.category].append(
-                                (alloc.ticket_name, alloc.ticket_count)
-                            )
-
-                st.success("1주차에 추가되었습니다! '소환권 입력' 탭에서 확인하세요.")
-
             # =================================================================
             # 10주 배분 기능
             # =================================================================
