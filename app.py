@@ -794,14 +794,20 @@ with tab4:
         else:
             st.warning(f"비율 합계: {pct_total_imm:.1f}% (100%가 권장됩니다)")
 
-        # 미리보기: 고대 + 전설 합산
+        # 미리보기: 고대 + 전설 합산 (같은 소환권 병합)
+        merged_allocs = {}
+        for alloc in (r_a.allocations or []) + (r_l.allocations or []):
+            if alloc.ticket_count >= 0:
+                if alloc.ticket_name in merged_allocs:
+                    merged_allocs[alloc.ticket_name] += alloc.ticket_count
+                else:
+                    merged_allocs[alloc.ticket_name] = alloc.ticket_count
+
+        # AllocationResult 형태로 변환
+        from dataclasses import dataclass as _dc
         all_imm_allocs = []
-        for alloc in (r_a.allocations or []):
-            if alloc.ticket_count >= 0:
-                all_imm_allocs.append(alloc)
-        for alloc in (r_l.allocations or []):
-            if alloc.ticket_count >= 0:
-                all_imm_allocs.append(alloc)
+        for name, count in merged_allocs.items():
+            all_imm_allocs.append(type('A', (), {'ticket_name': name, 'ticket_count': count})())
 
         if all_imm_allocs:
             import pandas as pd
