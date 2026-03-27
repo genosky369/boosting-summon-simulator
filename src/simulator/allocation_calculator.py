@@ -73,15 +73,18 @@ class AllocationCalculator:
         category: Category,
         target_grade: Grade,
         ticket_name: str,
-        ticket_count: int
+        ticket_count: int,
+        max_synthesis_grade: Optional[Grade] = None
     ) -> float:
         """
         단일 소환권으로 시뮬레이션하여 목표 등급 획득량 계산
 
-        도감을 고려하지 않고 순수하게 총 획득 개수만 계산
+        Args:
+            max_synthesis_grade: 합성 상한 등급 (None이면 카테고리 최대)
+                ANCIENT로 설정하면 고대→전설 합성 차단 (불멸 모드)
 
         Returns:
-            목표 등급의 총 획득량 (합성 포함)
+            목표 등급의 총 보유량 (도감 + 중복분)
         """
         if ticket_count <= 0:
             return 0.0
@@ -112,7 +115,13 @@ class AllocationCalculator:
                 inventory, target_level=self.card_target_level
             )
         else:
-            inventory, _ = synthesize_to_max(inventory, category)
+            if max_synthesis_grade:
+                # 합성 상한 제한 (불멸 모드: 고대→전설 차단)
+                inventory, _ = self.synthesis_engine.synthesize_all(
+                    inventory, category, max_grade=max_synthesis_grade
+                )
+            else:
+                inventory, _ = synthesize_to_max(inventory, category)
 
         # 목표 등급 총 보유량 (도감 + 중복분)
         owned = inventory.owned_count.get(target_grade, 0)
@@ -125,7 +134,8 @@ class AllocationCalculator:
         target_grade: Grade,
         ticket_name: str,
         target_items: float,
-        max_tickets: int = 10000000  # 1천만개 상한
+        max_tickets: int = 10000000,
+        max_synthesis_grade: Optional[Grade] = None
     ) -> Tuple[int, float, str]:
         """
         이진 탐색으로 목표 달성에 필요한 소환권 수 찾기
@@ -137,13 +147,11 @@ class AllocationCalculator:
             return 0, 0.0, ""
 
         # 먼저 상한선에서 달성 가능한지 확인
-        max_achievable = self._run_simulation(category, target_grade, ticket_name, max_tickets)
+        max_achievable = self._run_simulation(category, target_grade, ticket_name, max_tickets, max_synthesis_grade)
 
         if max_achievable < target_items:
-            # 상한선으로도 목표 달성 불가
             return -1, max_achievable, f"목표 {target_items:.1f}개 달성 불가 (최대 {max_achievable:.1f}개)"
 
-        # 이진 탐색으로 최소 필요량 찾기
         low = 0
         high = max_tickets
         best_count = max_tickets
@@ -151,7 +159,7 @@ class AllocationCalculator:
 
         while low < high:
             mid = (low + high) // 2
-            achieved = self._run_simulation(category, target_grade, ticket_name, mid)
+            achieved = self._run_simulation(category, target_grade, ticket_name, mid, max_synthesis_grade)
 
             if achieved >= target_items:
                 best_count = mid
@@ -160,8 +168,7 @@ class AllocationCalculator:
             else:
                 low = mid + 1
 
-        # 결과 검증
-        final_achieved = self._run_simulation(category, target_grade, ticket_name, best_count)
+        final_achieved = self._run_simulation(category, target_grade, ticket_name, best_count, max_synthesis_grade)
 
         return best_count, final_achieved, ""
 
@@ -170,7 +177,8 @@ class AllocationCalculator:
         category: Category,
         target_grade: Grade,
         target_count: int,
-        ticket_ratios: Dict[str, float]
+        ticket_ratios: Dict[str, float],
+        max_synthesis_grade: Optional[Grade] = None
     ) -> AllocationSummary:
         """
         목표 달성을 위한 소환권 배분 계산
@@ -216,7 +224,8 @@ class AllocationCalculator:
 
             # 이진 탐색으로 필요한 소환권 수 찾기
             ticket_count, expected, warning = self._find_required_tickets_binary_search(
-                category, target_grade, ticket_name, target_contribution
+                category, target_grade, ticket_name, target_contribution,
+                max_synthesis_grade=max_synthesis_grade
             )
 
             if ticket_count >= 0:
@@ -248,7 +257,8 @@ class AllocationCalculator:
         target_grade: Grade,
         target_count: int,
         ticket_ratios: Dict[str, float],
-        tolerance: float = 0.05
+        tolerance: float = 0.05,
+        max_synthesis_grade: Optional[Grade] = None
     ) -> AllocationSummary:
         """
         정밀한 배분 계산 (이진 탐색 기반)
@@ -256,7 +266,8 @@ class AllocationCalculator:
         calculate_allocation과 동일하게 동작 (이미 이진 탐색으로 정밀함)
         """
         return self.calculate_allocation(
-            category, target_grade, target_count, ticket_ratios
+            category, target_grade, target_count, ticket_ratios,
+            max_synthesis_grade=max_synthesis_grade
         )
 
     # 하위 호환성을 위한 메서드들

@@ -751,7 +751,8 @@ with tab4:
                         category=alloc_category,
                         target_grade=Grade.ANCIENT,
                         target_count=ancient_needed,
-                        ticket_ratios=ancient_ratios
+                        ticket_ratios=ancient_ratios,
+                        max_synthesis_grade=Grade.ANCIENT  # 고대→전설 합성 차단
                     )
                     result_legend = calc.calculate_allocation_precise(
                         category=alloc_category,
