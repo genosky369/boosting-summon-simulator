@@ -723,19 +723,41 @@ with tab4:
                     legend_target = st.session_state.state.target_spec.get(Category.CLASS, {}).get(Grade.LEGENDARY, 10)
                     legend_needed = legend_target + 8  # 목표 달성 + 잉여
 
-                    # 고대 확보를 위한 소환권 계산 (도감 + 잉여 포함)
+                    # 고대/전설 하위 목표별로 적합한 소환권만 분리하여 계산
+                    # 고대 확보: 고대를 직접 생산하는 소환권만 사용
+                    # 전설 확보: 전설을 직접/합성으로 생산하는 소환권만 사용
+                    ancient_ratios = {}
+                    legend_ratios = {}
+                    for tname, ratio in ratios.items():
+                        ticket = st.session_state.dm.get_ticket_by_name(tname)
+                        if ticket:
+                            probs = ticket.probabilities
+                            has_ancient = probs.get(Grade.ANCIENT, 0) > 0
+                            has_legendary = probs.get(Grade.LEGENDARY, 0) > 0
+                            # 고대 이하 등급이 있으면 합성으로 고대 생산 가능
+                            has_below_ancient = any(probs.get(g, 0) > 0 for g in [Grade.NORMAL, Grade.ADVANCED, Grade.RARE, Grade.HERO])
+                            if has_ancient or has_below_ancient:
+                                ancient_ratios[tname] = ratio
+                            if has_legendary or has_ancient or has_below_ancient:
+                                legend_ratios[tname] = ratio
+
+                    # 비율이 없으면 전체 사용
+                    if not ancient_ratios:
+                        ancient_ratios = ratios
+                    if not legend_ratios:
+                        legend_ratios = ratios
+
                     result_ancient = calc.calculate_allocation_precise(
                         category=alloc_category,
                         target_grade=Grade.ANCIENT,
                         target_count=ancient_needed,
-                        ticket_ratios=ratios
+                        ticket_ratios=ancient_ratios
                     )
-                    # 전설 확보를 위한 소환권 계산 (기본 목표 80% + 잉여 포함)
                     result_legend = calc.calculate_allocation_precise(
                         category=alloc_category,
                         target_grade=Grade.LEGENDARY,
                         target_count=legend_needed,
-                        ticket_ratios=ratios
+                        ticket_ratios=legend_ratios
                     )
 
                     st.session_state.alloc_result = None
