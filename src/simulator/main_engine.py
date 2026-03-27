@@ -283,11 +283,11 @@ class MainSimulationEngine:
                                 inventory.total_acquired.get(Grade.LEGENDARY, 0) - reserved_legendary)
 
                     if not ancient_filled:
-                        # 고대 도감 미달: 고대까지만 합성 (일반→고급→희귀→영웅→고대)
+                        # 고대 도감 미달: 영웅까지만 합성 (일반→고급→희귀→영웅)
+                        # max_grade=ANCIENT → ANCIENT에서 break → 고대→전설 차단
                         inventory, _ = self.synthesis_engine.synthesize_all(
-                            inventory, cat, max_grade=Grade.LEGENDARY
+                            inventory, cat, max_grade=Grade.ANCIENT
                         )
-                        # max_grade=LEGENDARY면 고대까지만 합성 (LEGENDARY에서 break)
                     else:
                         # 고대 도감 달성: 전설까지 합성
                         inventory, _ = synthesize_to_max(inventory, cat)
