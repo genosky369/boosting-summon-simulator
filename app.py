@@ -690,17 +690,38 @@ with tab4:
                 if alloc_target_grade == Grade.IMMORTAL and alloc_category == Category.CLASS:
                     # 불멸 각성 조건:
                     # - 고대 도감 95% 채우기 + 잉여 32개 (1회성)
-                    # - 전설 목표 80% 달성 + 잉여 8개 (1회성)
+                    # - 전설 목표 달성 + 잉여 8개 (1회성)
                     # - 불멸의 기운 4개 x N
                     ie_needed = alloc_target_count * 4
 
-                    # 고대: 도감 종류 수 + 잉여 32개
+                    # 고대: 역쿠폰 컬렉터로 도감 95% 달성에 필요한 총 수량 + 잉여 32개
+                    import math
                     ancient_type_count = st.session_state.dm.get_item_count(Category.CLASS, Grade.ANCIENT)
-                    ancient_needed = ancient_type_count + 32  # 도감 채우기 + 잉여
+                    target_unique = ancient_type_count * 0.95
 
-                    # 전설: 전설 목표의 80% + 잉여 8개
+                    # 이진탐색: unique(n, k) >= target_unique를 만족하는 최소 k 찾기
+                    def inverse_coupon_collector(n, target_u):
+                        lo, hi = 0, n * 200
+                        while lo < hi:
+                            mid = (lo + hi) // 2
+                            expected = n * (1 - ((n - 1) / n) ** mid) if n > 0 else 0
+                            if expected >= target_u:
+                                hi = mid
+                            else:
+                                lo = mid + 1
+                        return lo
+
+                    draws_for_95 = inverse_coupon_collector(ancient_type_count, target_unique)
+                    # 잉여 32개 추가 (draws_for_95에서 이미 잉여가 충분할 수 있음)
+                    surplus_at_draws = draws_for_95 - target_unique
+                    if surplus_at_draws < 32:
+                        ancient_needed = draws_for_95 + (32 - int(surplus_at_draws))
+                    else:
+                        ancient_needed = draws_for_95
+
+                    # 전설: 전설 목표 전체 + 잉여 8개
                     legend_target = st.session_state.state.target_spec.get(Category.CLASS, {}).get(Grade.LEGENDARY, 10)
-                    legend_needed = int(legend_target * 0.8) + 8  # 80% 달성 + 잉여
+                    legend_needed = legend_target + 8  # 목표 달성 + 잉여
 
                     # 고대 확보를 위한 소환권 계산 (도감 + 잉여 포함)
                     result_ancient = calc.calculate_allocation_precise(
@@ -745,8 +766,8 @@ with tab4:
 
         st.markdown(f"""
         **승급 조건 (1회성):**
-        - 고대 클래스: 도감 {ir['ancient_needed'] - 32}종 채우기 + 잉여 32개 = **총 {ir['ancient_needed']}개 필요**
-        - 전설 클래스: 목표 80% ({ir['legend_needed'] - 8}개) 달성 + 잉여 8개 = **총 {ir['legend_needed']}개 필요**
+        - 고대 클래스: 도감 95% 달성 + 잉여 32개 = **총 {ir['ancient_needed']}개 필요** (쿠폰 컬렉터 반영)
+        - 전설 클래스: 목표 {ir['legend_needed'] - 8}개 달성 + 잉여 8개 = **총 {ir['legend_needed']}개 필요**
         - 불멸의 기운: **{ir['ie_needed']}개** ({ir['target']}개 x 4)
         """)
 
