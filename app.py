@@ -726,7 +726,8 @@ with tab4:
                         ticket_ratios=ratios
                     )
 
-            st.session_state.alloc_result = result
+            if "alloc_immortal_result" not in st.session_state or not st.session_state.alloc_immortal_result:
+                st.session_state.alloc_result = result
 
     # 불멸 클래스 결과 표시
     if "alloc_immortal_result" in st.session_state and st.session_state.alloc_immortal_result:
