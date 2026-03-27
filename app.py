@@ -382,7 +382,7 @@ with tab3:
 
         for week in sorted(st.session_state.state.weekly_results.keys()):
             result = st.session_state.state.weekly_results[week]
-            weeks.append(f"{week}주차")
+            weeks.append(f"{week:02d}주차")
             class_contrib.append(result.weekly_contribution.get(Category.CLASS, 0) * 100)
             pet_contrib.append(result.weekly_contribution.get(Category.PET, 0) * 100)
             spirit_contrib.append(result.weekly_contribution.get(Category.SPIRIT, 0) * 100)
@@ -408,8 +408,10 @@ with tab3:
         cumulative_card = []
 
         total = {cat: 0 for cat in Category}
+        weeks_cum = []
         for week in sorted(st.session_state.state.weekly_results.keys()):
             result = st.session_state.state.weekly_results[week]
+            weeks_cum.append(f"{week:02d}주차")
             for cat in Category:
                 total[cat] += result.weekly_contribution.get(cat, 0) * 100
 
@@ -419,7 +421,7 @@ with tab3:
             cumulative_card.append(total[Category.CARD])
 
         cum_data = pd.DataFrame({
-            "주차": weeks,
+            "주차": weeks_cum,
             "클래스": cumulative_class,
             "펫": cumulative_pet,
             "투혼": cumulative_spirit,
