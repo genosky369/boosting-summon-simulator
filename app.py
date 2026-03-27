@@ -413,7 +413,7 @@ with tab2:
             ancient_dups = inv.duplicate_count.get(Grade.ANCIENT, 0)
             ancient_ready = ancient_owned >= ancient_types * 0.95  # 도감 95%+ 완성
             ancient_surplus = ancient_dups if ancient_ready else 0
-            ancient_needed = class_imm_target_r * 32
+            ancient_needed = 32  # 1회성 조건
 
             # 전설 잉여: 전설 목표의 80% 달성 후 남은 중복분
             legend_target = st.session_state.state.target_spec.get(Category.CLASS, {}).get(Grade.LEGENDARY, 10)
@@ -422,17 +422,20 @@ with tab2:
             legend_total = legend_owned + legend_dups
             legend_ready = legend_total >= legend_target * 0.8
             legend_surplus = max(0, legend_total - legend_target) if legend_ready else 0
-            legend_needed = class_imm_target_r * 8
+            legend_needed = 8  # 1회성 조건
 
             # 불멸의 기운
             total_ie = sum(st.session_state.get("immortal_essence", {}).values())
             ie_needed = class_imm_target_r * 4
 
-            # 불멸 달성 가능 수
-            possible_by_ancient = ancient_surplus / 32 if ancient_surplus > 0 else 0
-            possible_by_legend = legend_surplus / 8 if legend_surplus > 0 else 0
-            possible_by_ie = total_ie / 4 if total_ie > 0 else 0
-            achievable = min(possible_by_ancient, possible_by_legend, possible_by_ie)
+            # 1회성 조건 충족 여부
+            ancient_cond_met = ancient_surplus >= ancient_needed
+            legend_cond_met = legend_surplus >= legend_needed
+            # 불멸 달성 가능 수 = 조건 충족 시 불멸의 기운으로 결정
+            if ancient_cond_met and legend_cond_met:
+                achievable = min(class_imm_target_r, total_ie / 4) if total_ie > 0 else 0
+            else:
+                achievable = 0
 
             col1, col2, col3, col4 = st.columns(4)
 
@@ -441,25 +444,25 @@ with tab2:
 
             with col2:
                 pct_a = min(1.0, ancient_surplus / ancient_needed) if ancient_needed > 0 else 0
-                st.markdown(f"**고대 클래스 잉여**")
-                status_a = "준비중" if not ancient_ready else "수집중"
+                st.markdown(f"**고대 잉여 (1회성)**")
+                status_a = "충족" if ancient_cond_met else ("수집중" if ancient_ready else "준비중")
                 st.progress(pct_a, text=f"{ancient_surplus:.1f} / {ancient_needed} ({status_a})")
 
             with col3:
                 pct_l = min(1.0, legend_surplus / legend_needed) if legend_needed > 0 else 0
-                st.markdown(f"**전설 클래스 잉여**")
-                status_l = "준비중" if not legend_ready else "수집중"
+                st.markdown(f"**전설 잉여 (1회성)**")
+                status_l = "충족" if legend_cond_met else ("수집중" if legend_ready else "준비중")
                 st.progress(pct_l, text=f"{legend_surplus:.1f} / {legend_needed} ({status_l})")
 
             with col4:
                 pct_ie = min(1.0, total_ie / ie_needed) if ie_needed > 0 else 0
-                st.markdown(f"**불멸의 기운**")
+                st.markdown(f"**불멸의 기운 (x{class_imm_target_r})**")
                 st.progress(pct_ie, text=f"{total_ie} / {ie_needed}")
 
             if achievable >= class_imm_target_r:
-                st.success(f"불멸 클래스 {class_imm_target_r}개 달성 가능! (승급 가능: {achievable:.1f}개)")
-            elif achievable >= 1:
-                st.info(f"불멸 클래스 {achievable:.1f}개 승급 가능 (목표: {class_imm_target_r}개)")
+                st.success(f"불멸 클래스 {class_imm_target_r}개 달성 가능!")
+            elif ancient_cond_met and legend_cond_met and achievable >= 1:
+                st.info(f"조건 충족! 불멸의 기운으로 {int(achievable)}개 승급 가능 (목표: {class_imm_target_r}개)")
             else:
                 bottleneck = []
                 if ancient_surplus < ancient_needed:
@@ -685,19 +688,19 @@ with tab4:
                 # 필요 잉여: 고대 32개 + 전설 8개 per 불멸 1개
                 # → 고대 잉여 확보를 위해 "고대 등급" 기준으로 배분 계산
                 if alloc_target_grade == Grade.IMMORTAL and alloc_category == Category.CLASS:
-                    # 불멸 N개 = 고대 32N개 + 전설 8N개 + 불멸의 기운 4N개
-                    ancient_needed = alloc_target_count * 32
-                    legend_needed = alloc_target_count * 8
+                    # 불멸 각성 조건: 고대 32개 + 전설 8개 (1회성) + 불멸의 기운 4개 x N
+                    ancient_needed = 32  # 1회성
+                    legend_needed = 8    # 1회성
                     ie_needed = alloc_target_count * 4
 
-                    # 고대 잉여 확보를 위한 소환권 계산 (고대 등급 목표)
+                    # 고대 잉여 확보를 위한 소환권 계산
                     result_ancient = calc.calculate_allocation_precise(
                         category=alloc_category,
                         target_grade=Grade.ANCIENT,
                         target_count=ancient_needed,
                         ticket_ratios=ratios
                     )
-                    # 전설 잉여 확보를 위한 소환권 계산 (전설 등급 목표)
+                    # 전설 잉여 확보를 위한 소환권 계산
                     result_legend = calc.calculate_allocation_precise(
                         category=alloc_category,
                         target_grade=Grade.LEGENDARY,
@@ -731,9 +734,9 @@ with tab4:
         st.subheader(f"불멸 클래스 {ir['target']}개 승급에 필요한 소환권")
 
         st.markdown(f"""
-        **승급 재료 필요량:**
-        - 고대 클래스 잉여: **{ir['ancient_needed']}개** ({ir['target']}개 x 32)
-        - 전설 클래스 잉여: **{ir['legend_needed']}개** ({ir['target']}개 x 8)
+        **승급 조건:**
+        - 고대 클래스 잉여: **32개** (1회성 조건)
+        - 전설 클래스 잉여: **8개** (1회성 조건)
         - 불멸의 기운: **{ir['ie_needed']}개** ({ir['target']}개 x 4)
         """)
 
