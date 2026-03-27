@@ -768,6 +768,94 @@ with tab4:
         st.markdown("---")
         st.markdown(f"### 총 필요 소환권: **{r_a.total_tickets + r_l.total_tickets:,}개** + 불멸의 기운 {ir['ie_needed']}개")
 
+        # 10주 배분 (불멸)
+        st.markdown("---")
+        st.subheader("10주 배분")
+        st.markdown("고대/전설 확보용 소환권을 10주에 걸쳐 비율대로 분배합니다.")
+
+        if "weekly_pcts_imm" not in st.session_state:
+            st.session_state.weekly_pcts_imm = {w: 10.0 for w in range(1, 11)}
+
+        pct_cols_imm = st.columns(5)
+        for i in range(10):
+            w = i + 1
+            with pct_cols_imm[i % 5]:
+                st.session_state.weekly_pcts_imm[w] = st.number_input(
+                    f"{w}주차 ({BOOSTING_SCHEDULE[w].strftime('%m.%d')})",
+                    min_value=0.0, max_value=100.0,
+                    value=st.session_state.weekly_pcts_imm[w],
+                    step=0.1,
+                    key=f"weekly_pct_imm_{w}"
+                )
+
+        pct_total_imm = sum(st.session_state.weekly_pcts_imm.values())
+        if abs(pct_total_imm - 100) < 0.1:
+            st.success(f"비율 합계: {pct_total_imm:.1f}%")
+        else:
+            st.warning(f"비율 합계: {pct_total_imm:.1f}% (100%가 권장됩니다)")
+
+        # 미리보기: 고대 + 전설 합산
+        all_imm_allocs = []
+        for alloc in (r_a.allocations or []):
+            if alloc.ticket_count >= 0:
+                all_imm_allocs.append(alloc)
+        for alloc in (r_l.allocations or []):
+            if alloc.ticket_count >= 0:
+                all_imm_allocs.append(alloc)
+
+        if all_imm_allocs:
+            import pandas as pd
+            preview_imm = []
+            for w in range(1, 11):
+                pct = st.session_state.weekly_pcts_imm[w] / 100.0
+                row = {"주차": f"{w}주차 ({BOOSTING_SCHEDULE[w].strftime('%m.%d')})"}
+                for alloc in all_imm_allocs:
+                    short_name = alloc.ticket_name.replace(" (캐릭터 귀속)", "").replace(" (계정 귀속)", "")
+                    row[short_name] = round(alloc.ticket_count * pct)
+                preview_imm.append(row)
+
+            total_row = {"주차": "합계"}
+            for alloc in all_imm_allocs:
+                short_name = alloc.ticket_name.replace(" (캐릭터 귀속)", "").replace(" (계정 귀속)", "")
+                total_row[short_name] = sum(r[short_name] for r in preview_imm)
+            preview_imm.append(total_row)
+
+            df_imm = pd.DataFrame(preview_imm)
+            st.dataframe(df_imm, use_container_width=True, hide_index=True)
+
+        if st.button("10주 전체에 배분 적용", type="primary", key="apply_weekly_alloc_imm"):
+            from simulator.main_engine import WeeklyInput
+
+            for w in range(1, 11):
+                pct = st.session_state.weekly_pcts_imm[w] / 100.0
+
+                if w not in st.session_state.state.weekly_inputs:
+                    st.session_state.state.weekly_inputs[w] = WeeklyInput(
+                        week=w,
+                        date=BOOSTING_SCHEDULE[w],
+                        tickets={cat: [] for cat in Category}
+                    )
+
+                week_input = st.session_state.state.weekly_inputs[w]
+
+                for alloc in all_imm_allocs:
+                    weekly_count = round(alloc.ticket_count * pct)
+                    if weekly_count > 0:
+                        # 기존에 같은 소환권이 있으면 수량 추가
+                        found = False
+                        for i, (name, count) in enumerate(week_input.tickets[Category.CLASS]):
+                            if name == alloc.ticket_name:
+                                week_input.tickets[Category.CLASS][i] = (name, count + weekly_count)
+                                found = True
+                                break
+                        if not found:
+                            week_input.tickets[Category.CLASS].append(
+                                (alloc.ticket_name, weekly_count)
+                            )
+
+            st.success("10주 전체에 불멸 클래스용 소환권이 배분되었습니다! '소환권 입력' 탭에서 확인하세요.")
+            st.rerun()
+
     # 일반 결과 표시
     if "alloc_result" in st.session_state and st.session_state.alloc_result:
         result = st.session_state.alloc_result
