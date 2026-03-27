@@ -581,7 +581,7 @@ with tab4:
 
     # 목표 등급 선택 (카테고리별 달성 가능한 등급)
     grade_options = {
-        Category.CLASS: [Grade.ANCIENT, Grade.LEGENDARY],
+        Category.CLASS: [Grade.ANCIENT, Grade.LEGENDARY, Grade.IMMORTAL],
         Category.PET: [Grade.ANCIENT, Grade.LEGENDARY, Grade.IMMORTAL],
         Category.SPIRIT: [Grade.ANCIENT, Grade.LEGENDARY],
         Category.CARD: [Grade.HERO, Grade.ANCIENT, Grade.LEGENDARY],
