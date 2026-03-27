@@ -153,6 +153,8 @@ class Inventory:
         available = self.duplicate_count.get(grade, 0)
         used = min(available, count)
         self.duplicate_count[grade] = available - used
+        # total_acquired도 차감하여 쿠폰 컬렉터 계산이 정확하도록 함
+        self.total_acquired[grade] = max(0, self.total_acquired.get(grade, 0) - used)
         return used
 
 
