@@ -67,6 +67,11 @@ class_legendary = st.sidebar.number_input(
     min_value=0, max_value=50, value=10,
     key="class_legendary"
 )
+class_immortal = st.sidebar.number_input(
+    "불멸 클래스 목표",
+    min_value=0, max_value=10, value=0,
+    key="class_immortal"
+)
 
 st.sidebar.markdown("---")
 
@@ -121,13 +126,18 @@ card_target_level = st.sidebar.selectbox(
 
 # 목표 스펙 업데이트 버튼
 if st.sidebar.button("목표 스펙 적용", type="primary"):
+    class_target = {Grade.LEGENDARY: class_legendary}
+    if class_immortal > 0:
+        class_target[Grade.IMMORTAL] = class_immortal
     new_target = {
-        Category.CLASS: {Grade.LEGENDARY: class_legendary},
+        Category.CLASS: class_target,
         Category.PET: {Grade.LEGENDARY: pet_legendary, Grade.IMMORTAL: pet_immortal},
         Category.SPIRIT: {Grade.LEGENDARY: spirit_legendary},
         Category.CARD: {Grade.LEGENDARY: card_legendary} if card_legendary > 0 else {},
     }
     st.session_state.state.target_spec = new_target
+    # 불멸 클래스 목표 저장
+    st.session_state.state.class_immortal_target = class_immortal
     # 레벨업 목표 적용
     st.session_state.state.spirit_target_level = spirit_target_level
     st.session_state.state.card_target_level = card_target_level
@@ -266,6 +276,34 @@ with tab1:
     else:
         st.info("입력된 소환권이 없습니다.")
 
+    # 불멸의 기운 입력 (불멸 클래스 목표가 있을 때만)
+    class_imm_target = getattr(st.session_state.state, 'class_immortal_target', 0)
+    if class_imm_target > 0:
+        st.markdown("---")
+        st.subheader("불멸의 기운 입력")
+        st.caption("불멸 클래스 승급에 필요한 불멸의 기운을 주차별로 입력하세요. (불멸 클래스 1개당 4개 필요)")
+
+        if "immortal_essence" not in st.session_state:
+            st.session_state.immortal_essence = {w: 0 for w in range(1, TOTAL_WEEKS + 1)}
+
+        ie_cols = st.columns(5)
+        for i in range(TOTAL_WEEKS):
+            w = i + 1
+            with ie_cols[i % 5]:
+                st.session_state.immortal_essence[w] = st.number_input(
+                    f"{w}주차 ({BOOSTING_SCHEDULE[w].strftime('%m.%d')})",
+                    min_value=0, max_value=100,
+                    value=st.session_state.immortal_essence.get(w, 0),
+                    key=f"ie_{w}"
+                )
+
+        total_ie = sum(st.session_state.immortal_essence.values())
+        needed_ie = class_imm_target * 4
+        if total_ie >= needed_ie:
+            st.success(f"불멸의 기운: {total_ie}개 / {needed_ie}개 필요 (충족)")
+        else:
+            st.warning(f"불멸의 기운: {total_ie}개 / {needed_ie}개 필요 (부족 {needed_ie - total_ie}개)")
+
     # 시뮬레이션 실행 버튼
     st.markdown("---")
     if st.button("시뮬레이션 실행", type="primary", key="run_sim"):
@@ -361,6 +399,76 @@ with tab2:
                     st.progress(min(rate_val / 100, 1.0), text=f"{grade}: {rate}")
             else:
                 st.write("(목표 미설정)")
+
+    # 불멸 클래스 진행률
+    class_imm_target_r = getattr(st.session_state.state, 'class_immortal_target', 0)
+    if class_imm_target_r > 0:
+        st.markdown("---")
+        st.subheader("불멸 클래스 승급 진행률")
+
+        inv = st.session_state.state.current_inventories.get(Category.CLASS)
+        if inv:
+            # 고대 잉여: 고대 도감 완성 후 남은 중복분
+            ancient_owned, ancient_types = inv.get_collection_status(Grade.ANCIENT)
+            ancient_dups = inv.duplicate_count.get(Grade.ANCIENT, 0)
+            ancient_ready = ancient_owned >= ancient_types * 0.95  # 도감 95%+ 완성
+            ancient_surplus = ancient_dups if ancient_ready else 0
+            ancient_needed = class_imm_target_r * 32
+
+            # 전설 잉여: 전설 목표의 80% 달성 후 남은 중복분
+            legend_target = st.session_state.state.target_spec.get(Category.CLASS, {}).get(Grade.LEGENDARY, 10)
+            legend_owned = inv.owned_count.get(Grade.LEGENDARY, 0)
+            legend_dups = inv.duplicate_count.get(Grade.LEGENDARY, 0)
+            legend_total = legend_owned + legend_dups
+            legend_ready = legend_total >= legend_target * 0.8
+            legend_surplus = max(0, legend_total - legend_target) if legend_ready else 0
+            legend_needed = class_imm_target_r * 8
+
+            # 불멸의 기운
+            total_ie = sum(st.session_state.get("immortal_essence", {}).values())
+            ie_needed = class_imm_target_r * 4
+
+            # 불멸 달성 가능 수
+            possible_by_ancient = ancient_surplus / 32 if ancient_surplus > 0 else 0
+            possible_by_legend = legend_surplus / 8 if legend_surplus > 0 else 0
+            possible_by_ie = total_ie / 4 if total_ie > 0 else 0
+            achievable = min(possible_by_ancient, possible_by_legend, possible_by_ie)
+
+            col1, col2, col3, col4 = st.columns(4)
+
+            with col1:
+                st.metric("목표", f"{class_imm_target_r}개")
+
+            with col2:
+                pct_a = min(1.0, ancient_surplus / ancient_needed) if ancient_needed > 0 else 0
+                st.markdown(f"**고대 클래스 잉여**")
+                status_a = "준비중" if not ancient_ready else "수집중"
+                st.progress(pct_a, text=f"{ancient_surplus:.1f} / {ancient_needed} ({status_a})")
+
+            with col3:
+                pct_l = min(1.0, legend_surplus / legend_needed) if legend_needed > 0 else 0
+                st.markdown(f"**전설 클래스 잉여**")
+                status_l = "준비중" if not legend_ready else "수집중"
+                st.progress(pct_l, text=f"{legend_surplus:.1f} / {legend_needed} ({status_l})")
+
+            with col4:
+                pct_ie = min(1.0, total_ie / ie_needed) if ie_needed > 0 else 0
+                st.markdown(f"**불멸의 기운**")
+                st.progress(pct_ie, text=f"{total_ie} / {ie_needed}")
+
+            if achievable >= class_imm_target_r:
+                st.success(f"불멸 클래스 {class_imm_target_r}개 달성 가능! (승급 가능: {achievable:.1f}개)")
+            elif achievable >= 1:
+                st.info(f"불멸 클래스 {achievable:.1f}개 승급 가능 (목표: {class_imm_target_r}개)")
+            else:
+                bottleneck = []
+                if ancient_surplus < ancient_needed:
+                    bottleneck.append(f"고대 잉여 부족 ({ancient_surplus:.1f}/{ancient_needed})")
+                if legend_surplus < legend_needed:
+                    bottleneck.append(f"전설 잉여 부족 ({legend_surplus:.1f}/{legend_needed})")
+                if total_ie < ie_needed:
+                    bottleneck.append(f"불멸의 기운 부족 ({total_ie}/{ie_needed})")
+                st.warning(f"불멸 클래스 승급 불가. 병목: {', '.join(bottleneck)}")
 
 # =============================================================================
 # 탭 3: 진행률 추이
