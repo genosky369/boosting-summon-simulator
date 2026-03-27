@@ -258,14 +258,11 @@ class MainSimulationEngine:
                     if not ancient_filled:
                         pass  # 합성은 아래에서 max_grade 제한으로 처리
                     else:
-                        # 고대 도감 달성: 고대 32개 예약
+                        # 고대 도감 달성: 고대 32개 예약 (duplicate에서만 빼놓기)
                         ancient_dups = inventory.duplicate_count.get(Grade.ANCIENT, 0)
                         reserved_ancient = min(32, ancient_dups)
                         if reserved_ancient > 0:
-                            inventory.duplicate_count[Grade.ANCIENT] = max(0,
-                                inventory.duplicate_count.get(Grade.ANCIENT, 0) - reserved_ancient)
-                            inventory.total_acquired[Grade.ANCIENT] = max(0,
-                                inventory.total_acquired.get(Grade.ANCIENT, 0) - reserved_ancient)
+                            inventory.duplicate_count[Grade.ANCIENT] -= reserved_ancient
 
                     # 전설 잉여 예약 (전설 목표 80% 달성 시)
                     legend_target = state.target_spec.get(Category.CLASS, {}).get(Grade.LEGENDARY, 10)
@@ -277,14 +274,10 @@ class MainSimulationEngine:
                         legend_surplus = max(0, legend_total - legend_target)
                         reserved_legendary = min(8, legend_surplus)
                         if reserved_legendary > 0:
-                            inventory.duplicate_count[Grade.LEGENDARY] = max(0,
-                                inventory.duplicate_count.get(Grade.LEGENDARY, 0) - reserved_legendary)
-                            inventory.total_acquired[Grade.LEGENDARY] = max(0,
-                                inventory.total_acquired.get(Grade.LEGENDARY, 0) - reserved_legendary)
+                            inventory.duplicate_count[Grade.LEGENDARY] -= reserved_legendary
 
                     if not ancient_filled:
-                        # 고대 도감 미달: 영웅까지만 합성 (일반→고급→희귀→영웅)
-                        # max_grade=ANCIENT → ANCIENT에서 break → 고대→전설 차단
+                        # 고대 도감 미달: 영웅까지만 합성 (고대→전설 차단)
                         inventory, _ = self.synthesis_engine.synthesize_all(
                             inventory, cat, max_grade=Grade.ANCIENT
                         )
@@ -292,12 +285,10 @@ class MainSimulationEngine:
                         # 고대 도감 달성: 전설까지 합성
                         inventory, _ = synthesize_to_max(inventory, cat)
 
-                    # 예약분 복원
+                    # 예약분 복원 (duplicate에만)
                     if reserved_ancient > 0:
-                        inventory.total_acquired[Grade.ANCIENT] = inventory.total_acquired.get(Grade.ANCIENT, 0) + reserved_ancient
                         inventory.duplicate_count[Grade.ANCIENT] = inventory.duplicate_count.get(Grade.ANCIENT, 0) + reserved_ancient
                     if reserved_legendary > 0:
-                        inventory.total_acquired[Grade.LEGENDARY] = inventory.total_acquired.get(Grade.LEGENDARY, 0) + reserved_legendary
                         inventory.duplicate_count[Grade.LEGENDARY] = inventory.duplicate_count.get(Grade.LEGENDARY, 0) + reserved_legendary
                 else:
                     # 불멸 목표 없음 또는 펫: 기존대로

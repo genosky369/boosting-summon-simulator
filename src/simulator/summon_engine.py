@@ -61,40 +61,31 @@ class Inventory:
 
     def add_items(self, grade: Grade, count: float, item_type_count: int = 0):
         """
-        아이템 추가
+        아이템 추가 (증분 방식)
 
-        Args:
-            grade: 등급
-            count: 획득 개수 (기대값이므로 소수점 가능)
-            item_type_count: 해당 등급의 총 아이템 종류 수 (도감 계산용)
-
-        [도감 완성도 기반 로직]
-        1. 총 획득 개수 증가
-        2. 도감 등록: min(총획득, 종류수) - 종류 수만큼만 도감에 등록
-        3. 중복분: 총획득 - 도감등록 = 합성 재료
+        새로 추가된 아이템만 고유/중복으로 분배.
+        기존 duplicate_count를 리셋하지 않아 합성 소비분이 보존됨.
         """
-        # 종류 수 저장
         if item_type_count > 0:
             self._type_counts[grade] = item_type_count
 
         type_count = self._type_counts.get(grade, 0)
 
-        # 총 획득 증가
-        self.total_acquired[grade] = self.total_acquired.get(grade, 0) + count
+        old_total = self.total_acquired.get(grade, 0)
+        self.total_acquired[grade] = old_total + count
+        new_total = self.total_acquired[grade]
 
-        # 도감 완성도 계산 (종류 수만큼만 도감에 등록)
-        total = self.total_acquired[grade]
         if type_count > 0:
-            # 도감에 등록되는 개수 = 기대값으로 계산
-            # 쿠폰 수집 문제의 기대값 근사 사용
-            owned = self._calculate_expected_unique(total, type_count)
-            self.owned_count[grade] = owned
-            # 중복분 = 총 획득 - 도감 등록
-            self.duplicate_count[grade] = max(0, total - owned)
+            old_unique = self._calculate_expected_unique(old_total, type_count)
+            new_unique = self._calculate_expected_unique(new_total, type_count)
+            unique_gain = max(0, new_unique - old_unique)
+            dup_gain = count - unique_gain
+
+            self.owned_count[grade] = new_unique
+            self.duplicate_count[grade] = self.duplicate_count.get(grade, 0) + dup_gain
         else:
-            # 종류 수 정보가 없으면 전부 중복으로 처리
             self.owned_count[grade] = 0
-            self.duplicate_count[grade] = total
+            self.duplicate_count[grade] = self.duplicate_count.get(grade, 0) + count
 
     def _calculate_expected_unique(self, total_draws: float, total_types: int) -> float:
         """
@@ -145,7 +136,7 @@ class Inventory:
 
     def use_materials(self, grade: Grade, count: float) -> float:
         """
-        합성 재료 사용
+        합성 재료 사용 (duplicate_count만 차감, total_acquired는 유지)
 
         Returns:
             실제 사용한 개수
@@ -153,8 +144,6 @@ class Inventory:
         available = self.duplicate_count.get(grade, 0)
         used = min(available, count)
         self.duplicate_count[grade] = available - used
-        # total_acquired도 차감하여 쿠폰 컬렉터 계산이 정확하도록 함
-        self.total_acquired[grade] = max(0, self.total_acquired.get(grade, 0) - used)
         return used
 
 
