@@ -699,7 +699,7 @@ with tab4:
                     ancient_needed = ancient_type_count + 32  # 도감 채우기 + 잉여
 
                     # 전설: 전설 목표의 80% + 잉여 8개
-                    legend_target = state.target_spec.get(Category.CLASS, {}).get(Grade.LEGENDARY, 10)
+                    legend_target = st.session_state.state.target_spec.get(Category.CLASS, {}).get(Grade.LEGENDARY, 10)
                     legend_needed = int(legend_target * 0.8) + 8  # 80% 달성 + 잉여
 
                     # 고대 확보를 위한 소환권 계산 (도감 + 잉여 포함)
