@@ -677,6 +677,86 @@ with tab4:
                             )
 
                 st.success("1주차에 추가되었습니다! '소환권 입력' 탭에서 확인하세요.")
+
+            # =================================================================
+            # 10주 배분 기능
+            # =================================================================
+            st.markdown("---")
+            st.subheader("10주 배분")
+            st.markdown("배분 계산기 결과를 10주에 걸쳐 비율대로 자동 분배합니다.")
+
+            # 주차별 비율 입력
+            if "weekly_pcts" not in st.session_state:
+                st.session_state.weekly_pcts = {w: 10.0 for w in range(1, 11)}
+
+            pct_cols = st.columns(5)
+            for i in range(10):
+                w = i + 1
+                with pct_cols[i % 5]:
+                    st.session_state.weekly_pcts[w] = st.number_input(
+                        f"{w}주차 ({BOOSTING_SCHEDULE[w].strftime('%m.%d')})",
+                        min_value=0.0, max_value=100.0,
+                        value=st.session_state.weekly_pcts[w],
+                        step=0.1,
+                        key=f"weekly_pct_{w}"
+                    )
+
+            pct_total = sum(st.session_state.weekly_pcts.values())
+            if abs(pct_total - 100) < 0.1:
+                st.success(f"비율 합계: {pct_total:.1f}%")
+            else:
+                st.warning(f"비율 합계: {pct_total:.1f}% (100%가 권장됩니다)")
+
+            # 미리보기 테이블
+            if valid_allocations:
+                import pandas as pd
+                preview_data = []
+                for w in range(1, 11):
+                    pct = st.session_state.weekly_pcts[w] / 100.0
+                    row = {"주차": f"{w}주차 ({BOOSTING_SCHEDULE[w].strftime('%m.%d')})"}
+                    for alloc in valid_allocations:
+                        short_name = alloc.ticket_name.replace(" (캐릭터 귀속)", "").replace(" (계정 귀속)", "")
+                        weekly_count = round(alloc.ticket_count * pct)
+                        row[short_name] = weekly_count
+                    preview_data.append(row)
+
+                # 합계 행
+                total_row = {"주차": "합계"}
+                for alloc in valid_allocations:
+                    short_name = alloc.ticket_name.replace(" (캐릭터 귀속)", "").replace(" (계정 귀속)", "")
+                    total_row[short_name] = sum(r[short_name] for r in preview_data)
+                preview_data.append(total_row)
+
+                df = pd.DataFrame(preview_data)
+                st.dataframe(df, use_container_width=True, hide_index=True)
+
+            # 적용 버튼
+            if st.button("10주 전체에 배분 적용", type="primary", key="apply_weekly_alloc"):
+                from simulator.main_engine import WeeklyInput
+
+                for w in range(1, 11):
+                    pct = st.session_state.weekly_pcts[w] / 100.0
+
+                    if w not in st.session_state.state.weekly_inputs:
+                        st.session_state.state.weekly_inputs[w] = WeeklyInput(
+                            week=w,
+                            date=BOOSTING_SCHEDULE[w],
+                            tickets={cat: [] for cat in Category}
+                        )
+
+                    week_input = st.session_state.state.weekly_inputs[w]
+                    # 해당 카테고리의 기존 소환권 초기화
+                    week_input.tickets[result.category] = []
+
+                    for alloc in valid_allocations:
+                        weekly_count = round(alloc.ticket_count * pct)
+                        if weekly_count > 0:
+                            week_input.tickets[result.category].append(
+                                (alloc.ticket_name, weekly_count)
+                            )
+
+                st.success(f"10주 전체에 {category_names[result.category]} 소환권이 배분되었습니다! '소환권 입력' 탭에서 확인하세요.")
+
         else:
             st.warning("계산 결과가 없습니다. 소환권 데이터를 확인해주세요.")
 
