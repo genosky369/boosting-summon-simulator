@@ -681,16 +681,90 @@ with tab4:
                 else:
                     calc = st.session_state.alloc_calc
 
-                result = calc.calculate_allocation_precise(
-                    category=alloc_category,
-                    target_grade=alloc_target_grade,
-                    target_count=alloc_target_count,
-                    ticket_ratios=ratios
-                )
+                # 불멸 클래스: 합성이 아닌 각성 시스템이므로 별도 처리
+                # 필요 잉여: 고대 32개 + 전설 8개 per 불멸 1개
+                # → 고대 잉여 확보를 위해 "고대 등급" 기준으로 배분 계산
+                if alloc_target_grade == Grade.IMMORTAL and alloc_category == Category.CLASS:
+                    # 불멸 N개 = 고대 32N개 + 전설 8N개 + 불멸의 기운 4N개
+                    ancient_needed = alloc_target_count * 32
+                    legend_needed = alloc_target_count * 8
+                    ie_needed = alloc_target_count * 4
+
+                    # 고대 잉여 확보를 위한 소환권 계산 (고대 등급 목표)
+                    result_ancient = calc.calculate_allocation_precise(
+                        category=alloc_category,
+                        target_grade=Grade.ANCIENT,
+                        target_count=ancient_needed,
+                        ticket_ratios=ratios
+                    )
+                    # 전설 잉여 확보를 위한 소환권 계산 (전설 등급 목표)
+                    result_legend = calc.calculate_allocation_precise(
+                        category=alloc_category,
+                        target_grade=Grade.LEGENDARY,
+                        target_count=legend_needed,
+                        ticket_ratios=ratios
+                    )
+
+                    st.session_state.alloc_result = None
+                    st.session_state.alloc_immortal_result = {
+                        "target": alloc_target_count,
+                        "ancient": result_ancient,
+                        "legend": result_legend,
+                        "ancient_needed": ancient_needed,
+                        "legend_needed": legend_needed,
+                        "ie_needed": ie_needed,
+                    }
+                else:
+                    st.session_state.alloc_immortal_result = None
+                    result = calc.calculate_allocation_precise(
+                        category=alloc_category,
+                        target_grade=alloc_target_grade,
+                        target_count=alloc_target_count,
+                        ticket_ratios=ratios
+                    )
 
             st.session_state.alloc_result = result
 
-    # 결과 표시
+    # 불멸 클래스 결과 표시
+    if "alloc_immortal_result" in st.session_state and st.session_state.alloc_immortal_result:
+        ir = st.session_state.alloc_immortal_result
+        st.subheader(f"불멸 클래스 {ir['target']}개 승급에 필요한 소환권")
+
+        st.markdown(f"""
+        **승급 재료 필요량:**
+        - 고대 클래스 잉여: **{ir['ancient_needed']}개** ({ir['target']}개 x 32)
+        - 전설 클래스 잉여: **{ir['legend_needed']}개** ({ir['target']}개 x 8)
+        - 불멸의 기운: **{ir['ie_needed']}개** ({ir['target']}개 x 4)
+        """)
+
+        st.markdown("---")
+
+        # 고대 잉여 확보용
+        st.markdown(f"### 고대 클래스 {ir['ancient_needed']}개 확보용 소환권")
+        r_a = ir['ancient']
+        if r_a.allocations:
+            for alloc in r_a.allocations:
+                if alloc.ticket_count >= 0:
+                    short_name = alloc.ticket_name.replace(" (캐릭터 귀속)", "").replace(" (계정 귀속)", "")
+                    st.write(f"- **{short_name}**: {alloc.ticket_count:,}개 (기대: {alloc.expected_target_items:.1f}개)")
+            st.write(f"**소계: {r_a.total_tickets:,}개**")
+
+        st.markdown("---")
+
+        # 전설 잉여 확보용
+        st.markdown(f"### 전설 클래스 {ir['legend_needed']}개 확보용 소환권")
+        r_l = ir['legend']
+        if r_l.allocations:
+            for alloc in r_l.allocations:
+                if alloc.ticket_count >= 0:
+                    short_name = alloc.ticket_name.replace(" (캐릭터 귀속)", "").replace(" (계정 귀속)", "")
+                    st.write(f"- **{short_name}**: {alloc.ticket_count:,}개 (기대: {alloc.expected_target_items:.1f}개)")
+            st.write(f"**소계: {r_l.total_tickets:,}개**")
+
+        st.markdown("---")
+        st.markdown(f"### 총 필요 소환권: **{r_a.total_tickets + r_l.total_tickets:,}개** + 불멸의 기운 {ir['ie_needed']}개")
+
+    # 일반 결과 표시
     if "alloc_result" in st.session_state and st.session_state.alloc_result:
         result = st.session_state.alloc_result
 
