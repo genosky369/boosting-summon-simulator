@@ -296,6 +296,10 @@ class DataManager:
             Category.SPIRIT: self.loader.load_item_type_counts(Category.SPIRIT),
             Category.CARD: self.loader.load_item_type_counts(Category.CARD),
         }
+        # 불멸 클래스 종류 수 (Excel에 없으므로 전설과 동일하게 설정)
+        if Grade.IMMORTAL not in self.item_counts.get(Category.CLASS, {}):
+            legend_count = self.item_counts.get(Category.CLASS, {}).get(Grade.LEGENDARY, 28)
+            self.item_counts[Category.CLASS][Grade.IMMORTAL] = legend_count
 
         # 투혼 레벨업/합성 포인트
         self.spirit_levelup_info = self.loader.load_spirit_levelup_info()
