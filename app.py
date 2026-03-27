@@ -688,19 +688,28 @@ with tab4:
                 # 필요 잉여: 고대 32개 + 전설 8개 per 불멸 1개
                 # → 고대 잉여 확보를 위해 "고대 등급" 기준으로 배분 계산
                 if alloc_target_grade == Grade.IMMORTAL and alloc_category == Category.CLASS:
-                    # 불멸 각성 조건: 고대 32개 + 전설 8개 (1회성) + 불멸의 기운 4개 x N
-                    ancient_needed = 32  # 1회성
-                    legend_needed = 8    # 1회성
+                    # 불멸 각성 조건:
+                    # - 고대 도감 95% 채우기 + 잉여 32개 (1회성)
+                    # - 전설 목표 80% 달성 + 잉여 8개 (1회성)
+                    # - 불멸의 기운 4개 x N
                     ie_needed = alloc_target_count * 4
 
-                    # 고대 잉여 확보를 위한 소환권 계산
+                    # 고대: 도감 종류 수 + 잉여 32개
+                    ancient_type_count = st.session_state.dm.get_item_count(Category.CLASS, Grade.ANCIENT)
+                    ancient_needed = ancient_type_count + 32  # 도감 채우기 + 잉여
+
+                    # 전설: 전설 목표의 80% + 잉여 8개
+                    legend_target = state.target_spec.get(Category.CLASS, {}).get(Grade.LEGENDARY, 10)
+                    legend_needed = int(legend_target * 0.8) + 8  # 80% 달성 + 잉여
+
+                    # 고대 확보를 위한 소환권 계산 (도감 + 잉여 포함)
                     result_ancient = calc.calculate_allocation_precise(
                         category=alloc_category,
                         target_grade=Grade.ANCIENT,
                         target_count=ancient_needed,
                         ticket_ratios=ratios
                     )
-                    # 전설 잉여 확보를 위한 소환권 계산
+                    # 전설 확보를 위한 소환권 계산 (기본 목표 80% + 잉여 포함)
                     result_legend = calc.calculate_allocation_precise(
                         category=alloc_category,
                         target_grade=Grade.LEGENDARY,
@@ -735,9 +744,9 @@ with tab4:
         st.subheader(f"불멸 클래스 {ir['target']}개 승급에 필요한 소환권")
 
         st.markdown(f"""
-        **승급 조건:**
-        - 고대 클래스 잉여: **32개** (1회성 조건)
-        - 전설 클래스 잉여: **8개** (1회성 조건)
+        **승급 조건 (1회성):**
+        - 고대 클래스: 도감 {ir['ancient_needed'] - 32}종 채우기 + 잉여 32개 = **총 {ir['ancient_needed']}개 필요**
+        - 전설 클래스: 목표 80% ({ir['legend_needed'] - 8}개) 달성 + 잉여 8개 = **총 {ir['legend_needed']}개 필요**
         - 불멸의 기운: **{ir['ie_needed']}개** ({ir['target']}개 x 4)
         """)
 
